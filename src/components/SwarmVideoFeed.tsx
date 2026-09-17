@@ -45,7 +45,7 @@ export const SwarmVideoFeed: React.FC<SwarmVideoFeedProps> = ({
       {/* Video Element */}
       <video
         ref={videoRef}
-        src="/flies_2.mp4"
+        src="./flies_2.mp4"
         autoPlay={autoPlay}
         loop
         muted={isMuted}
