@@ -1,0 +1,6 @@
+{
+  "name": "VETO // Three Fruit Flies Trading Swarm",
+  "description": "Drosophila Command Center & Three Fruit Flies trading swarm for Pons launchpad on Robinhood Chain",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

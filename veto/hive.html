@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drosophila Command Center v2.7.4 // VETO Swarm</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Orbitron:wght@600;800;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030712;
+      --panel-bg: rgba(6, 14, 26, 0.88);
+      --cyan: #00f5ff;
+      --cyan-dim: rgba(0, 245, 255, 0.25);
+      --cyan-glow: rgba(0, 245, 255, 0.65);
+      --magenta: #ff007f;
+      --magenta-dim: rgba(255, 0, 127, 0.25);
+      --magenta-glow: rgba(255, 0, 127, 0.65);
+      --yellow: #ffd000;
+      --green: #00ff88;
+      --border: rgba(0, 245, 255, 0.35);
+      --border-mag: rgba(255, 0, 127, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background: var(--bg);
+      color: #e0f2fe;
+      font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 50% 10%, rgba(255, 0, 127, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 50% 70%, rgba(0, 245, 255, 0.06) 0%, transparent 50%),
+        linear-gradient(rgba(0, 245, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 245, 255, 0.03) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 310px 1fr 340px;
+      grid-template-rows: auto 1fr auto;
+      gap: 12px;
+      min-height: 100vh;
+    }
+
+    /* Terminal HUD Panel Box */
+    .hud-box {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px 12px;
+      position: relative;
+      box-shadow: 0 0 15px rgba(0, 245, 255, 0.06), inset 0 0 15px rgba(0, 245, 255, 0.03);
+    }
+
+    .hud-box::before {
+      content: "";
+      position: absolute;
+      top: -1px; left: -1px;
+      width: 8px; height: 8px;
+      border-top: 2px solid var(--cyan);
+      border-left: 2px solid var(--cyan);
+    }
+    .hud-box::after {
+      content: "";
+      position: absolute;
+      bottom: -1px; right: -1px;
+      width: 8px; height: 8px;
+      border-bottom: 2px solid var(--cyan);
+      border-right: 2px solid var(--cyan);
+    }
+
+    .box-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      color: var(--cyan);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px var(--cyan-glow);
+    }
+
+    .badge-active {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--magenta);
+      font-size: 10px;
+      font-family: 'Fira Code', monospace;
+      text-shadow: 0 0 6px var(--magenta);
+    }
+
+    .dot-pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--magenta);
+      box-shadow: 0 0 8px var(--magenta);
+      animation: pulse 1.4s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    /* Left Column */
+    .left-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Spectrogram Canvas */
+    .spectrogram-wrap {
+      position: relative;
+      height: 140px;
+      background: #020611;
+      border: 1px solid rgba(255, 0, 127, 0.3);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    canvas#spectrogramCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .spec-stats {
+      margin-top: 8px;
+      font-family: 'Fira Code', monospace;
+      font-size: 10px;
+      color: #93c5fd;
+      line-height: 1.6;
+    }
+    .spec-stats span {
+      color: var(--cyan);
+    }
+
+    /* Radar Canvas */
+    .radar-wrap {
+      position: relative;
+      height: 200px;
+      background: #020611;
+      border: 1px solid rgba(0, 245, 255, 0.3);
+      border-radius: 2px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas#radarCanvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .radar-legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 8px;
+      font-size: 11px;
+      font-family: 'Fira Code', monospace;
+      margin-top: 8px;
+    }
+    .radar-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .rad-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    /* Center Brain & Swarm */
+    .center-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .brain-stage {
+      position: relative;
+      height: 380px;
+      background: #02050f;
+      border: 1px solid rgba(0, 245, 255, 0.4);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    canvas#neuralCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Platform & Fly Unit Cards */
+    .pedestal-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    .fly-card {
+      background: rgba(3, 10, 22, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+    .fly-card.guard-card {
+      border-color: var(--border-mag);
+    }
+    .fly-card:hover {
+      box-shadow: 0 0 16px rgba(0, 245, 255, 0.2);
+    }
+    .fly-card.guard-card:hover {
+      box-shadow: 0 0 16px rgba(255, 0, 127, 0.2);
+    }
+
+    .fly-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+    }
+    .scout-color { color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+    .guard-color { color: var(--magenta); text-shadow: 0 0 8px var(--magenta); }
+    .hunter-color { color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+
+    .fly-details {
+      font-family: 'Fira Code', monospace;
+      font-size: 9.5px;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+    .fly-details strong { color: #f8fafc; }
+
+    .ecg-mini {
+      height: 36px;
+      margin-top: 8px;
+      border-top: 1px dashed rgba(0, 245, 255, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Right Column (Journal & Telemetry) */
+    .right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .log-terminal {
+      background: #01040a;
+      border: 1px solid rgba(0, 245, 255, 0.25);
+      padding: 8px;
+      font-family: 'Fira Code', monospace;
+      font-size: 9.5px;
+      height: 250px;
+      overflow-y: auto;
+      line-height: 1.5;
+      color: #38bdf8;
+    }
+
+    .log-line {
+      margin-bottom: 3px;
+      display: flex;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .log-ts { color: #64748b; }
+    .log-landed { color: var(--green); font-weight: bold; }
+    .log-refused { color: var(--magenta); }
+    .log-sniff { color: var(--cyan); }
+    .log-skip { color: #94a3b8; }
+
+    /* Ring Gauge */
+    .sync-circle {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 8px 0;
+    }
+    .circle-wrap {
+      position: relative;
+      width: 68px;
+      height: 68px;
+    }
+    .circle-svg {
+      transform: rotate(-90deg);
+      width: 100%;
+      height: 100%;
+    }
+    .circle-bg {
+      fill: none;
+      stroke: rgba(255, 0, 127, 0.2);
+      stroke-width: 5;
+    }
+    .circle-val {
+      fill: none;
+      stroke: var(--cyan);
+      stroke-width: 5;
+      stroke-dasharray: 188;
+      stroke-dashoffset: 8;
+      filter: drop-shadow(0 0 6px var(--cyan));
+      transition: stroke-dashoffset 0.6s ease;
+    }
+    .circle-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Orbitron', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .circle-text span {
+      font-size: 7px;
+      color: var(--magenta);
+    }
+
+    /* Bottom status */
+    .bottom-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(4, 12, 24, 0.95);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      font-family: 'Orbitron', monospace;
+      font-size: 11px;
+      letter-spacing: 1.2px;
+      color: var(--cyan);
+      text-shadow: 0 0 6px var(--cyan);
+    }
+
+    .btn-action {
+      background: rgba(0, 245, 255, 0.1);
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      font-family: 'Orbitron', monospace;
+      font-size: 10px;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .btn-action:hover {
+      background: var(--cyan);
+      color: #030712;
+      box-shadow: 0 0 12px var(--cyan);
+    }
+
+    @media (max-width: 1024px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+      .pedestal-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- LEFT COLUMN -->
+    <div class="left-col">
+      <div class="hud-box">
+        <div class="box-title">
+          <span>DROSOPHILA CMD v2.7.4</span>
+          <span class="badge-active"><span class="dot-pulse"></span> ACTIVE</span>
+        </div>
+        <div style="font-family: 'Fira Code', monospace; font-size: 10px; color: #7dd3fc; margin-bottom: 6px;">
+          NEURAL INTERFACE // LIVE FEED
+        </div>
+        <div class="spectrogram-wrap">
+          <canvas id="spectrogramCanvas"></canvas>
+        </div>
+        <div class="spec-stats">
+          <div>DOMINANT FREQ: <span id="domFreq">38.7 Hz</span></div>
+          <div>POWER: <span id="specPower">82.4%</span></div>
+          <div>COHERENCE: <span id="specCoh">0.91</span></div>
+        </div>
+      </div>
+
+      <div class="hud-box">
+        <div class="box-title">
+          <span>RADAR // PONS SCAN</span>
+          <span style="font-size: 9px; color: #94a3b8;">RATE: 20 Hz</span>
+        </div>
+        <div class="radar-wrap">
+          <canvas id="radarCanvas"></canvas>
+        </div>
+        <div class="radar-legend">
+          <div class="radar-item"><span class="rad-dot" style="background:#ff007f;"></span> ODOR PLUME</div>
+          <div class="radar-item"><span class="rad-dot" style="background:#00f5ff;"></span> POOL DEPTH</div>
+          <div class="radar-item"><span class="rad-dot" style="background:#ffd000;"></span> VOL SURGE</div>
+          <div class="radar-item"><span class="rad-dot" style="background:#00ff88;"></span> PASS CANDIDATE</div>
+        </div>
+        <div style="font-family:'Fira Code', monospace; font-size:9.5px; color:#64748b; margin-top:6px;">
+          RANGE: 2.5m // RES: 0.01m // PAPER MODE ONLY
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER COLUMN -->
+    <div class="center-col">
+      <div class="hud-box" style="padding-bottom: 6px;">
+        <div class="box-title">
+          <span>3D NEURAL MAP // FRUIT FLY BRAIN</span>
+          <div style="display:flex; gap:10px; font-size:10px;">
+            <span style="color:var(--magenta);">● OPTIC LOBES</span>
+            <span style="color:var(--cyan);">● LIVE AXONS</span>
+          </div>
+        </div>
+        
+        <div class="brain-stage">
+          <canvas id="neuralCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Pedestal Cards -->
+      <div class="pedestal-row">
+        <div class="fly-card">
+          <div class="fly-title scout-color">SCOUT</div>
+          <div class="fly-details">
+            <div>ROLE: <strong>SCENT SNIFFER</strong></div>
+            <div>THRESHOLD: <strong>>= 0.35</strong></div>
+            <div>STATUS: <strong style="color:var(--cyan);">ACTIVE</strong></div>
+            <div>SIGNAL: <strong>STABLE</strong></div>
+          </div>
+          <div class="ecg-mini">
+            <canvas id="scoutEcg" width="220" height="36"></canvas>
+          </div>
+        </div>
+
+        <div class="fly-card guard-card">
+          <div class="fly-title guard-color">GUARD</div>
+          <div class="fly-details">
+            <div>ROLE: <strong>VETO ENFORCER</strong></div>
+            <div>RULES: <strong>5 SEQUENTIAL</strong></div>
+            <div>STATUS: <strong style="color:var(--magenta);">ARMED</strong></div>
+            <div>SIGNAL: <strong>STABLE</strong></div>
+          </div>
+          <div class="ecg-mini">
+            <canvas id="guardEcg" width="220" height="36"></canvas>
+          </div>
+        </div>
+
+        <div class="fly-card">
+          <div class="fly-title hunter-color">HUNTER</div>
+          <div class="fly-details">
+            <div>ROLE: <strong>TARGET ACQUISITION</strong></div>
+            <div>FIXED SIZE: <strong>0.04 ETH</strong></div>
+            <div>STATUS: <strong style="color:var(--green);">READY</strong></div>
+            <div>SIGNAL: <strong>STABLE</strong></div>
+          </div>
+          <div class="ecg-mini">
+            <canvas id="hunterEcg" width="220" height="36"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="right-col">
+      <div class="hud-box">
+        <div class="box-title">
+          <span>JOURNAL // SYSTEM LOG</span>
+          <button class="btn-action" id="stepBtn" onclick="runSimulatedStep()">CYCLE SWARM</button>
+        </div>
+        <div class="log-terminal" id="logTerminal">
+          <div class="log-line"><span class="log-ts">[BOOT]</span> SYSTEM INITIALIZATION COMPLETE</div>
+          <div class="log-line"><span class="log-ts">[PONS]</span> FIXTURES LOADED: 14 LAUNCHES</div>
+          <div class="log-line"><span class="log-ts">[GUARD]</span> 5 DEFENSIVE VETO SHIELDS ACTIVE</div>
+          <div class="log-line"><span class="log-ts">[HUNTER]</span> SIZE_ETH FIXED AT 0.04 (PAPER ONLY)</div>
+          <div class="log-line"><span class="log-ts">[SEC]</span> LIVE SIGNING DISABLED BY DESIGN</div>
+        </div>
+      </div>
+
+      <div class="hud-box">
+        <div class="box-title">
+          <span>NEURAL LINK STATUS</span>
+          <span style="color:var(--green); font-size:10px;">EXCELLENT</span>
+        </div>
+        <div class="sync-circle">
+          <div class="circle-wrap">
+            <svg class="circle-svg" viewBox="0 0 68 68">
+              <circle class="circle-bg" cx="34" cy="34" r="30"/>
+              <circle class="circle-val" cx="34" cy="34" r="30"/>
+            </svg>
+            <div class="circle-text">
+              98.7%
+              <span>SYNC</span>
+            </div>
+          </div>
+          <div style="font-family:'Fira Code', monospace; font-size:10px; color:#94a3b8; line-height:1.6;">
+            <div>LATENCY: <span style="color:#fff;">1.2 ms</span></div>
+            <div>PACKET LOSS: <span style="color:#fff;">0.00%</span></div>
+            <div>SIGNAL QUALITY: <span style="color:var(--green);">EXCELLENT</span></div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid rgba(0, 245, 255, 0.2); margin-top:8px; padding-top:8px;">
+          <div style="font-family:'Orbitron', monospace; font-size:10px; color:var(--cyan); margin-bottom:4px;">
+            FLY TELEMETRY ACTIVITY
+          </div>
+          <div style="font-family:'Fira Code', monospace; font-size:10px; color:#94a3b8; line-height:1.7;">
+            <div style="display:flex; justify-content:space-between;">
+              <span>● SCOUT LOAD:</span> <span style="color:var(--cyan);">0.83%</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span>● GUARD LOAD:</span> <span style="color:var(--magenta);">1.46%</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span>● HUNTER LOAD:</span> <span style="color:var(--green);">2.12%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM STATUS BAR -->
+    <div class="bottom-bar">
+      <div>
+        <span class="dot-pulse" style="display:inline-block; margin-right:6px;"></span>
+        UNITS DEPLOYED: 3 // ALL SYSTEMS NOMINAL // ROBINHOOD CHAIN (PONS)
+      </div>
+      <div>
+        STIMULUS: ETHYL BUTYRATE 10^-6 // PAPERTEM-VETO
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- 1. SPECTROGRAM SIMULATOR ---
+    const specCanvas = document.getElementById('spectrogramCanvas');
+    const sCtx = specCanvas.getContext('2d');
+    let specWidth = specCanvas.width = specCanvas.parentElement.clientWidth;
+    let specHeight = specCanvas.height = specCanvas.parentElement.clientHeight;
+
+    const bands = 24;
+    const history = [];
+
+    function drawSpectrogram() {
+      sCtx.fillStyle = 'rgba(2, 6, 17, 0.15)';
+      sCtx.fillRect(0, 0, specWidth, specHeight);
+
+      const colW = 6;
+      // Shift left
+      const imgData = sCtx.getImageData(colW, 0, specWidth - colW, specHeight);
+      sCtx.putImageData(imgData, 0, 0);
+
+      // Draw new column at right edge
+      const t = Date.now() * 0.003;
+      for (let i = 0; i < bands; i++) {
+        const val = (Math.sin(t + i * 0.4) + Math.cos(t * 0.7 - i * 0.2) + 2) / 4;
+        const y = specHeight - (i / bands) * specHeight;
+        const h = specHeight / bands;
+
+        const r = Math.floor(255 * val);
+        const g = Math.floor(100 * Math.pow(val, 2));
+        const b = Math.floor(255 * (1 - val));
+        sCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        sCtx.fillRect(specWidth - colW, y - h, colW, h);
+      }
+      requestAnimationFrame(drawSpectrogram);
+    }
+    requestAnimationFrame(drawSpectrogram);
+
+    // --- 2. RADAR SIMULATOR ---
+    const radCanvas = document.getElementById('radarCanvas');
+    const rCtx = radCanvas.getContext('2d');
+    let radW = radCanvas.width = radCanvas.parentElement.clientWidth;
+    let radH = radCanvas.height = radCanvas.parentElement.clientHeight;
+    let sweepAngle = 0;
+
+    const radarBlips = [
+      { dist: 0.35, angle: 1.2, color: '#ff007f', label: 'PLUME' },
+      { dist: 0.65, angle: 2.8, color: '#00f5ff', label: 'PONS' },
+      { dist: 0.82, angle: 4.5, color: '#ffd000', label: 'VOL' },
+      { dist: 0.50, angle: 5.6, color: '#00ff88', label: 'PASS' }
+    ];
+
+    function drawRadar() {
+      rCtx.fillStyle = 'rgba(2, 6, 17, 0.08)';
+      rCtx.fillRect(0, 0, radW, radH);
+
+      const cx = radW / 2;
+      const cy = radH / 2;
+      const r = Math.min(cx, cy) - 10;
+
+      // Concentric circles
+      rCtx.strokeStyle = 'rgba(0, 245, 255, 0.2)';
+      rCtx.lineWidth = 1;
+      for (let i = 1; i <= 3; i++) {
+        rCtx.beginPath();
+        rCtx.arc(cx, cy, (r / 3) * i, 0, Math.PI * 2);
+        rCtx.stroke();
+      }
+
+      // Crosshairs
+      rCtx.beginPath();
+      rCtx.moveTo(cx - r, cy); rCtx.lineTo(cx + r, cy);
+      rCtx.moveTo(cx, cy - r); rCtx.lineTo(cx, cy + r);
+      rCtx.stroke();
+
+      // Sweep line
+      sweepAngle += 0.04;
+      const sx = cx + Math.cos(sweepAngle) * r;
+      const sy = cy + Math.sin(sweepAngle) * r;
+
+      const grad = rCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grad.addColorStop(0, 'rgba(0, 245, 255, 0.15)');
+      grad.addColorStop(1, 'rgba(0, 245, 255, 0.0)');
+
+      rCtx.beginPath();
+      rCtx.moveTo(cx, cy);
+      rCtx.arc(cx, cy, r, sweepAngle - 0.4, sweepAngle);
+      rCtx.fillStyle = grad;
+      rCtx.fill();
+
+      // Sweep edge line
+      rCtx.beginPath();
+      rCtx.moveTo(cx, cy);
+      rCtx.lineTo(sx, sy);
+      rCtx.strokeStyle = '#00f5ff';
+      rCtx.lineWidth = 1.5;
+      rCtx.stroke();
+
+      // Blips
+      radarBlips.forEach(b => {
+        const bx = cx + Math.cos(b.angle) * (r * b.dist);
+        const by = cy + Math.sin(b.angle) * (r * b.dist);
+        rCtx.beginPath();
+        rCtx.arc(bx, by, 3.5, 0, Math.PI * 2);
+        rCtx.fillStyle = b.color;
+        rCtx.shadowColor = b.color;
+        rCtx.shadowBlur = 8;
+        rCtx.fill();
+        rCtx.shadowBlur = 0;
+      });
+
+      requestAnimationFrame(drawRadar);
+    }
+    requestAnimationFrame(drawRadar);
+
+    // --- 3. 3D NEURAL BRAIN MAP & FLIES CANVAS ---
+    const nCanvas = document.getElementById('neuralCanvas');
+    const nCtx = nCanvas.getContext('2d');
+    let nW = nCanvas.width = nCanvas.parentElement.clientWidth;
+    let nH = nCanvas.height = nCanvas.parentElement.clientHeight;
+
+    function drawNeuralScene() {
+      nCtx.fillStyle = '#02050f';
+      nCtx.fillRect(0, 0, nW, nH);
+
+      const cx = nW / 2;
+      const cy = nH * 0.32;
+      const t = Date.now() * 0.002;
+
+      // Glowing Brain Hemispheres
+      const lobes = [-1, 1];
+      lobes.forEach(dir => {
+        const lx = cx + dir * 65;
+        const ly = cy;
+
+        // Outer glow
+        const glow = nCtx.createRadialGradient(lx, ly, 10, lx, ly, 80);
+        glow.addColorStop(0, dir === -1 ? 'rgba(0, 245, 255, 0.25)' : 'rgba(255, 0, 127, 0.25)');
+        glow.addColorStop(1, 'transparent');
+        nCtx.fillStyle = glow;
+        nCtx.beginPath();
+        nCtx.arc(lx, ly, 80, 0, Math.PI * 2);
+        nCtx.fill();
+
+        // Wireframe neural mesh
+        nCtx.strokeStyle = dir === -1 ? 'rgba(0, 245, 255, 0.6)' : 'rgba(255, 0, 127, 0.6)';
+        nCtx.lineWidth = 1;
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+          const rx = 45 + Math.sin(t + a * 2) * 5;
+          const ry = 35 + Math.cos(t + a * 3) * 5;
+          nCtx.beginPath();
+          nCtx.ellipse(lx, ly, rx, ry, a * dir, 0, Math.PI * 2);
+          nCtx.stroke();
+        }
+      });
+
+      // Central Synapse bridge
+      nCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      nCtx.beginPath();
+      nCtx.moveTo(cx - 30, cy);
+      nCtx.lineTo(cx + 30, cy);
+      nCtx.stroke();
+
+      // Axon Filaments branching down to 3 Flies
+      const flyXPositions = [nW * 0.22, cx, nW * 0.78];
+      const flyY = nH * 0.74;
+
+      flyXPositions.forEach((fx, idx) => {
+        const isGuard = idx === 1;
+        const color = isGuard ? '#ff007f' : '#00f5ff';
+        nCtx.strokeStyle = color;
+        nCtx.lineWidth = 1.5;
+
+        // Curving axon lines
+        for (let branch = -2; branch <= 2; branch++) {
+          nCtx.beginPath();
+          nCtx.moveTo(cx + branch * 12, cy + 25);
+          const cpX = (cx + fx) / 2 + Math.sin(t * 1.5 + branch) * 15;
+          const cpY = (cy + flyY) / 2 + branch * 6;
+          nCtx.quadraticCurveTo(cpX, cpY, fx + branch * 6, flyY - 20);
+          nCtx.globalAlpha = 0.5;
+          nCtx.stroke();
+        }
+        nCtx.globalAlpha = 1.0;
+
+        // Draw Stylized Wireframe Fruit Fly
+        drawWireframeFly(nCtx, fx, flyY, isGuard, t + idx);
+      });
+
+      // Pedestal Glass Shelf
+      nCtx.strokeStyle = 'rgba(0, 245, 255, 0.6)';
+      nCtx.lineWidth = 2;
+      nCtx.beginPath();
+      nCtx.moveTo(nW * 0.08, flyY + 22);
+      nCtx.lineTo(nW * 0.92, flyY + 22);
+      nCtx.stroke();
+
+      // Grid underneath pedestal
+      nCtx.strokeStyle = 'rgba(0, 245, 255, 0.15)';
+      for (let gx = nW * 0.08; gx <= nW * 0.92; gx += 20) {
+        nCtx.beginPath();
+        nCtx.moveTo(gx, flyY + 22);
+        nCtx.lineTo(gx + (gx - cx) * 0.3, nH);
+        nCtx.stroke();
+      }
+
+      requestAnimationFrame(drawNeuralScene);
+    }
+
+    function drawWireframeFly(ctx, x, y, isMagenta, animTime) {
+      const color = isMagenta ? '#ff007f' : '#00f5ff';
+      const eyeColor = '#ff1133';
+
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Wings (subtle flutter)
+      const wingAngle = Math.sin(animTime * 12) * 0.15;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+
+      // Left Wing
+      ctx.save();
+      ctx.rotate(-0.4 + wingAngle);
+      ctx.beginPath();
+      ctx.ellipse(-18, -12, 20, 8, -0.3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Right Wing
+      ctx.save();
+      ctx.rotate(0.4 - wingAngle);
+      ctx.beginPath();
+      ctx.ellipse(18, -12, 20, 8, 0.3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Thorax & Abdomen (wireframe body)
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 10, 16, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Rib segments
+      for (let s = -8; s <= 8; s += 4) {
+        ctx.beginPath();
+        ctx.moveTo(-7, s);
+        ctx.lineTo(7, s);
+        ctx.stroke();
+      }
+
+      // Head
+      ctx.beginPath();
+      ctx.arc(0, -18, 6, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Compound Red Eyes
+      ctx.fillStyle = eyeColor;
+      ctx.shadowColor = eyeColor;
+      ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.arc(-5, -20, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(5, -20, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Legs (3 pairs)
+      ctx.lineWidth = 1;
+      [-1, 1].forEach(side => {
+        // Front leg
+        ctx.beginPath();
+        ctx.moveTo(side * 6, -6);
+        ctx.lineTo(side * 18, -10);
+        ctx.lineTo(side * 22, 12);
+        ctx.stroke();
+
+        // Middle leg
+        ctx.beginPath();
+        ctx.moveTo(side * 8, 2);
+        ctx.lineTo(side * 22, 4);
+        ctx.lineTo(side * 24, 18);
+        ctx.stroke();
+
+        // Back leg
+        ctx.beginPath();
+        ctx.moveTo(side * 6, 10);
+        ctx.lineTo(side * 20, 18);
+        ctx.lineTo(side * 25, 22);
+        ctx.stroke();
+      });
+
+      ctx.restore();
+    }
+    requestAnimationFrame(drawNeuralScene);
+
+    // --- 4. ECG OSCILLATIONS ---
+    function setupEcg(id, color) {
+      const c = document.getElementById(id);
+      const ctx = c.getContext('2d');
+      let offset = 0;
+
+      function render() {
+        ctx.clearRect(0, 0, c.width, c.height);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 4;
+        ctx.beginPath();
+
+        offset += 0.08;
+        for (let x = 0; x < c.width; x++) {
+          const norm = x / 25;
+          let y = Math.sin(norm + offset) * 5;
+          // Pulse spikes
+          if ((x + Math.floor(offset * 20)) % 70 < 8) {
+            y += Math.sin((x % 8) * Math.PI) * 14;
+          }
+          const cy = c.height / 2 + y;
+          if (x === 0) ctx.moveTo(x, cy);
+          else ctx.lineTo(x, cy);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        requestAnimationFrame(render);
+      }
+      requestAnimationFrame(render);
+    }
+    setupEcg('scoutEcg', '#00f5ff');
+    setupEcg('guardEcg', '#ff007f');
+    setupEcg('hunterEcg', '#00f5ff');
+
+    // --- 5. LOG SIMULATOR ---
+    const launches = [
+      { id: "launch-01", ticker: "PONSFLY", scent: 0.94, scout: "SNIFF", guard: "PASS", why: null, hunter: "LANDED", size: "0.04 ETH" },
+      { id: "launch-02", ticker: "SNIPEBOMB", scent: 0.69, scout: "SNIFF", guard: "REFUSED", why: "snipe window", hunter: "IDLE", size: null },
+      { id: "launch-03", ticker: "RUGCREATOR", scent: 0.91, scout: "SNIFF", guard: "REFUSED", why: "creator", hunter: "IDLE", size: null },
+      { id: "launch-04", ticker: "INFINITEMINT", scent: 0.93, scout: "SNIFF", guard: "REFUSED", why: "mint", hunter: "IDLE", size: null },
+      { id: "launch-05", ticker: "VETO", scent: 0.96, scout: "SNIFF", guard: "REFUSED", why: "own name", hunter: "IDLE", size: null },
+      { id: "launch-08", ticker: "DEADSCENT", scent: 0.03, scout: "SKIP", guard: "REFUSED", why: "low scent", hunter: "IDLE", size: null },
+      { id: "launch-09", ticker: "FLATSCENT", scent: 0.43, scout: "SNIFF", guard: "REFUSED", why: "flat scent", hunter: "IDLE", size: null },
+      { id: "launch-11", ticker: "BERAFLIGHT", scent: 0.95, scout: "SNIFF", guard: "PASS", why: null, hunter: "LANDED", size: "0.04 ETH" }
+    ];
+
+    let launchIdx = 0;
+    function runSimulatedStep() {
+      const l = launches[launchIdx % launches.length];
+      launchIdx++;
+      const term = document.getElementById('logTerminal');
+      const timeStr = new Date().toISOString().substring(11, 19);
+
+      const div = document.createElement('div');
+      div.className = 'log-line';
+
+      let guardColorClass = l.guard === 'PASS' ? 'log-landed' : 'log-refused';
+      let hunterColorClass = l.hunter === 'LANDED' ? 'log-landed' : 'log-skip';
+      let whyStr = l.why ? ` (${l.why})` : '';
+      let sizeStr = l.size ? ` [${l.size}]` : '';
+
+      div.innerHTML = `
+        <span class="log-ts">[${timeStr}]</span>
+        <strong>${l.ticker}</strong>
+        <span style="color:#38bdf8">s:${l.scent}</span>
+        <span class="${guardColorClass}">G:${l.guard}${whyStr}</span>
+        <span class="${hunterColorClass}">H:${l.hunter}${sizeStr}</span>
+      `;
+      term.appendChild(div);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    // Auto stream log every 3 seconds
+    setInterval(runSimulatedStep, 3500);
+
+    window.addEventListener('resize', () => {
+      specWidth = specCanvas.width = specCanvas.parentElement.clientWidth;
+      specHeight = specCanvas.height = specCanvas.parentElement.clientHeight;
+      radW = radCanvas.width = radCanvas.parentElement.clientWidth;
+      radH = radCanvas.height = radCanvas.parentElement.clientHeight;
+      nW = nCanvas.width = nCanvas.parentElement.clientWidth;
+      nH = nCanvas.height = nCanvas.parentElement.clientHeight;
+    });
+  </script>
+</body>
+</html>
